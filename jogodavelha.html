@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo da Velha</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #f8f9fa, #d7e3fc);
+            color: #333;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 10px;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .cell:hover:not(.taken) {
+            background-color: #d4bfff;
+            transform: scale(1.1);
+        }
+        .cell.taken {
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 1.2em;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+        }
+        #reset {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            color: #fff;
+            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        #reset:hover {
+            background: #4e9ef7;
+        }
+        #score {
+            margin-top: 15px;
+            font-size: 1.2em;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+        }
+        audio {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Jogo da Velha</h1>
+    <div id="game-board"></div>
+    <div id="status">Vez do jogador!</div>
+    <div id="score">Placar - Jogador: 0 | Computador: 0</div>
+    <button id="reset">Reiniciar</button>
+    <audio id="background-music" src="https://www.chosic.com/wp-content/uploads/2021/08/lofi-study.mp3" autoplay loop></audio>
+
+    <script>
+        const board = Array(9).fill(null);
+        const gameBoard = document.getElementById('game-board');
+        const statusDisplay = document.getElementById('status');
+        const resetButton = document.getElementById('reset');
+        const scoreDisplay = document.getElementById('score');
+        const backgroundMusic = document.getElementById('background-music');
+        
+        let currentPlayer = 'O';
+        let playerScore = 0;
+        let computerScore = 0;
+
+        function createBoard() {
+            gameBoard.innerHTML = '';
+            board.forEach((_, i) => {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.index = i;
+                cell.addEventListener('click', handlePlayerMove);
+                gameBoard.appendChild(cell);
+            });
+        }
+
+        function handlePlayerMove(event) {
+            const index = event.target.dataset.index;
+
+            if (board[index] || checkWinner()) return;
+
+            board[index] = currentPlayer;
+            event.target.textContent = currentPlayer;
+            event.target.classList.add('taken');
+
+            if (checkWinner()) {
+                playerScore++;
+                updateScore();
+                statusDisplay.textContent = `${currentPlayer} venceu!`;
+                return;
+            }
+
+            if (board.every(cell => cell)) {
+                statusDisplay.textContent = 'Empate!';
+                return;
+            }
+
+            currentPlayer = currentPlayer === 'O' ? 'X' : 'O';
+            statusDisplay.textContent = `Vez do ${currentPlayer === 'O' ? 'jogador' : 'computador'}!`;
+
+            if (currentPlayer === 'X') {
+                setTimeout(computerMove, 500);
+            }
+        }
+
+        function computerMove() {
+            const emptyCells = board.map((cell, i) => (cell === null ? i : null)).filter(i => i !== null);
+            
+            // Improved AI: Try to win or block player
+            const winningMoves = getWinningMoves('X');
+            const blockingMoves = getWinningMoves('O');
+            
+            let chosenIndex;
+            if (winningMoves.length > 0) {
+                chosenIndex = winningMoves[0];
+            } else if (blockingMoves.length > 0) {
+                chosenIndex = blockingMoves[0];
+            } else {
+                chosenIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            }
+
+            board[chosenIndex] = currentPlayer;
+            const cell = document.querySelector(`.cell[data-index='${chosenIndex}']`);
+            cell.textContent = currentPlayer;
+            cell.classList.add('taken');
+
+            if (checkWinner()) {
+                computerScore++;
+                updateScore();
+                statusDisplay.textContent = `${currentPlayer} venceu!`;
+                return;
+            }
+
+            if (board.every(cell => cell)) {
+                statusDisplay.textContent = 'Empate!';
+                return;
+            }
+
+            currentPlayer = 'O';
+            statusDisplay.textContent = 'Vez do jogador!';
+        }
+
+        function getWinningMoves(player) {
+            const winningCombinations = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8],
+                [0, 3, 6], [1, 4, 7], [2, 5, 8],
+                [0, 4, 8], [2, 4, 6]
+            ];
+
+            return winningCombinations
+                .filter(([a, b, c]) =>
+                    (board[a] === player && board[b] === player && !board[c]) ||
+                    (board[a] === player && !board[b] && board[c] === player) ||
+                    (!board[a] && board[b] === player && board[c] === player)
+                )
+                .map(([a, b, c]) => (!board[a] ? a : !board[b] ? b : c));
+        }
+
+        function checkWinner() {
+            const winningCombinations = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8],
+                [0, 3, 6], [1, 4, 7], [2, 5, 8],
+                [0, 4, 8], [2, 4, 6]
+            ];
+
+            return winningCombinations.some(combination => {
+                const [a, b, c] = combination;
+                return board[a] && board[a] === board[b] && board[a] === board[c];
+            });
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = `Placar - Jogador: ${playerScore} | Computador: ${computerScore}`;
+        }
+
+        resetButton.addEventListener('click', () => {
+            board.fill(null);
+            currentPlayer = 'O';
+            statusDisplay.textContent = 'Vez do jogador!';
+            createBoard();
+        });
+
+        createBoard();
+    </script>
+</body>
+</html>
